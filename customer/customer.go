@@ -2,6 +2,7 @@ package customer
 
 import (
 	"database/sql"
+	"fmt"
 
 	"github.com/google/uuid"
 )
@@ -32,31 +33,15 @@ func GetCustomers(tx *sql.Tx) ([]Customer, error) {
 	return data, nil
 }
 
-func GetCustomerByID(id string, tx *sql.Tx) (Customer, error) {
-	statement, err := tx.Prepare("SELECT * FROM tb_customers WHERE UUID = ?")
+func GetCustomerByField(idValue, idField string, tx *sql.Tx) (Customer, error) {
+
+	query := fmt.Sprintf("SELECT * FROM tb_customers WHERE %s = ?", idField)
+	statement, err := tx.Prepare(query)
 	if err != nil {
 		return Customer{}, err
 	}
 
-	rows, err := statement.Query(id)
-	if err != nil {
-		return Customer{}, err
-	}
-
-	data := Customer{}
-	for rows.Next() {
-		rows.Scan(&data.UUID, &data.Name, &data.Email, &data.CPF, &data.Points)
-	}
-	return data, nil
-}
-
-func GetCustomerByCPF(cpf string, tx *sql.Tx) (Customer, error) {
-	statement, err := tx.Prepare("SELECT * FROM tb_customers WHERE CPF = ?")
-	if err != nil {
-		return Customer{}, err
-	}
-
-	rows, err := statement.Query(cpf)
+	rows, err := statement.Query(idValue)
 	if err != nil {
 		return Customer{}, err
 	}
@@ -65,10 +50,12 @@ func GetCustomerByCPF(cpf string, tx *sql.Tx) (Customer, error) {
 	for rows.Next() {
 		rows.Scan(&data.UUID, &data.Name, &data.Email, &data.CPF, &data.Points)
 	}
+
 	return data, nil
 }
 
 func CreateCustomer(newCustomer Customer, tx *sql.Tx) (Customer, error) {
+
 	id := uuid.New().String()
 	newCustomer.UUID = id
 
@@ -87,12 +74,28 @@ func CreateCustomer(newCustomer Customer, tx *sql.Tx) (Customer, error) {
 }
 
 func UpdateCustomerPoints(points int, idCustomer string, tx *sql.Tx) error {
+
 	statement, err := tx.Prepare("UPDATE tb_customers SET Points = ? WHERE UUID = ?")
 	if err != nil {
 		return err
 	}
 
 	_, err = statement.Exec(points, idCustomer)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func UpdateCustomerEmail(newEmail string, idCustomer string, tx *sql.Tx) error {
+
+	statement, err := tx.Prepare("UPDATE tb_customers SET Email = ? WHERE UUID = ?")
+	if err != nil {
+		return err
+	}
+
+	_, err = statement.Exec(newEmail, idCustomer)
 	if err != nil {
 		return err
 	}

@@ -22,37 +22,42 @@ func GetCustomer(c *gin.Context) {
 
 	paramID := c.Query("id")
 	if paramID != "" {
-		customer, err := customer.GetCustomerByID(paramID, tx)
+		customer, err := customer.GetCustomerByField(paramID, "UUID", tx)
 		if err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, err)
 			return
 		}
 		if customer.UUID == "" {
+			tx.Rollback()
 			c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
 			return
 		}
 		c.JSON(http.StatusOK, customer)
+		tx.Commit()
 		return
 	}
 
 	paramCPF := c.Query("cpf")
 	if paramCPF != "" {
-		customer, err := customer.GetCustomerByCPF(paramCPF, tx)
+		customer, err := customer.GetCustomerByField(paramCPF, "CPF", tx)
 		if err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, err)
 			return
 		}
 		if customer.UUID == "" {
+			tx.Rollback()
 			c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não encontrado"})
 			return
 		}
 		c.JSON(http.StatusOK, customer)
+		tx.Commit()
 		return
 	}
 
 	if len(c.Request.URL.Query()) > 0 {
+		tx.Rollback()
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Utilize parâmetros válidos"})
 		return
 	}
@@ -63,6 +68,8 @@ func GetCustomer(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, []customer.Customer{})
 		return
 	}
+
+	tx.Commit()
 	c.JSON(http.StatusOK, customers)
 }
 
@@ -70,17 +77,29 @@ func PostCustomer(c *gin.Context) {
 
 	newCustomer := customer.Customer{}
 	if err := c.BindJSON(&newCustomer); err != nil {
+		log.Println(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON inválido"})
 		return
 	}
 
+	log.Println(newCustomer)
+
 	tx, err := con.Begin()
 	if err != nil {
+		log.Println(err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao iniciar a transação"})
 		return
 	}
 
-	oldCustomer, err := customer.GetCustomerByCPF(newCustomer.CPF, tx)
+	oldCustomer := customer.Customer{}
+	if newCustomer.CPF != "" {
+		oldCustomer, err = customer.GetCustomerByField(newCustomer.CPF, "CPF", tx)
+	} else if newCustomer.Email != "" {
+		oldCustomer, err = customer.GetCustomerByField(newCustomer.Email, "Email", tx)
+	} else if newCustomer.Name != "" {
+		oldCustomer, err = customer.GetCustomerByField(newCustomer.Name, "Name", tx)
+	}
+
 	if err != nil {
 		log.Println(err)
 		tx.Rollback()
@@ -89,7 +108,7 @@ func PostCustomer(c *gin.Context) {
 	}
 
 	if oldCustomer.UUID != "" {
-		log.Println(err)
+		log.Println("Usuário já existente")
 		tx.Rollback()
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Usuário já existente"})
 		return
@@ -132,7 +151,7 @@ func PutAddUserPoints(c *gin.Context) {
 		return
 	}
 
-	oldCustomer, err := customer.GetCustomerByID(payload.UUID, tx)
+	oldCustomer, err := customer.GetCustomerByField(payload.UUID, "UUID", tx)
 	if err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
@@ -140,11 +159,13 @@ func PutAddUserPoints(c *gin.Context) {
 	}
 
 	if oldCustomer.UUID == "" {
+		tx.Rollback()
 		c.JSON(http.StatusNotFound, gin.H{"error": "Usuário não existente"})
 		return
 	}
 
 	if payload.Points < 0 && (payload.Points*-1) > oldCustomer.Points {
+		tx.Rollback()
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Pontos insuficientes"})
 		return
 	}

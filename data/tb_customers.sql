@@ -6,3 +6,6 @@ CREATE TABLE IF NOT EXISTS tb_customers (
  CPF varchar(11),
  Points int
 );
+
+CREATE INDEX ix_UUID
+ON tb_customers (UUID);
