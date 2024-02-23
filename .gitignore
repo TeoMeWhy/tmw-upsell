@@ -3,3 +3,6 @@
 *.xlsx
 __pycache__
 *.pyc
+./main
+main
+bin/
