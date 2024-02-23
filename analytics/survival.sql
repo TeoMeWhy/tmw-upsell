@@ -30,7 +30,7 @@ tb_user_day AS (
     SELECT IdCustomer,
             avg(julianday(DtTransaction) -julianday(lagDtTransaction)) AS qtDays
     FROM tb_lag
-    where lagDtTransaction is not null
+    -- where lagDtTransaction is not null
     group by 1
     
 ),
@@ -79,4 +79,4 @@ tb_qtde_dias AS (
 -- from tb_qtde_dias
 
 SELECT *
-FROM tb_survival
+FROM tb_lag
