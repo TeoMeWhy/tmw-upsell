@@ -1,0 +1,9 @@
+DROP TABLE IF EXISTS tb_users;
+CREATE TABLE IF NOT EXISTS tb_users (
+    UUID VARCHAR(100),
+    Name VARCHAR(100),
+    Email VARCHAR(150),
+    idOrg VARCHAR(250),
+    Token VARCHAR(300),
+    Role  VARCHAR(50)
+);
