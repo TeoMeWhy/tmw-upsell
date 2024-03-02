@@ -1,15 +1,16 @@
-package customer
+package customers
 
 import (
 	"database/sql"
-	"fmt"
 	"log"
+	"points_mgmt/db"
 
 	"github.com/google/uuid"
 )
 
 type Customer struct {
 	UUID           string
+	IdOrg          string
 	Name           string
 	Email          string
 	CPF            string
@@ -23,6 +24,7 @@ func GetCustomers(tx *sql.Tx) ([]Customer, error) {
 	query := `
 	SELECT
 		COALESCE(UUID, '') AS UUID,
+		COALESCE(IdOrg, '') AS IdOrg,
 		COALESCE(Name, '') AS Name,
 		COALESCE(Email, '') AS Email,
 		COALESCE(CPF, '') AS CPF,
@@ -43,6 +45,7 @@ func GetCustomers(tx *sql.Tx) ([]Customer, error) {
 		user := Customer{}
 		rows.Scan(
 			&user.UUID,
+			&user.IdOrg,
 			&user.Name,
 			&user.Email,
 			&user.CPF,
@@ -56,11 +59,12 @@ func GetCustomers(tx *sql.Tx) ([]Customer, error) {
 	return data, nil
 }
 
-func GetCustomerByField(idValue, idField string, tx *sql.Tx) (Customer, error) {
+func GetCustomerByField(keyValue map[string]string, tx *sql.Tx) (Customer, error) {
 
 	query := `
 	SELECT
 		COALESCE(UUID, '') AS UUID,
+		COALESCE(IdOrg, '') AS IdOrg,
 		COALESCE(Name, '') AS Name,
 		COALESCE(Email, '') AS Email,
 		COALESCE(CPF, '') AS CPF,
@@ -69,16 +73,20 @@ func GetCustomerByField(idValue, idField string, tx *sql.Tx) (Customer, error) {
 		COALESCE(TelComercial, '') AS TelComercial,
 		COALESCE(Instagram, '') AS Instagram
 	FROM tb_customers
-	WHERE %s = ?`
+	`
 
-	query = fmt.Sprintf(query, idField)
+	query, values := db.FormatQueryFilters(query, keyValue)
+
+	log.Println(query)
 
 	statement, err := tx.Prepare(query)
 	if err != nil {
 		return Customer{}, err
 	}
 
-	rows, err := statement.Query(idValue)
+	log.Println(values)
+
+	rows, err := statement.Query(values...)
 	if err != nil {
 		return Customer{}, err
 	}
@@ -87,6 +95,7 @@ func GetCustomerByField(idValue, idField string, tx *sql.Tx) (Customer, error) {
 	for rows.Next() {
 		rows.Scan(
 			&data.UUID,
+			&data.IdOrg,
 			&data.Name,
 			&data.Email,
 			&data.CPF,
@@ -103,13 +112,14 @@ func CreateCustomer(newCustomer Customer, tx *sql.Tx) (Customer, error) {
 
 	newCustomer.UUID = uuid.New().String()
 
-	statement, err := tx.Prepare("INSERT INTO tb_customers VALUES (?,?,?,?,?,?,?,?);")
+	statement, err := tx.Prepare("INSERT INTO tb_customers VALUES (?,?,?,?,?,?,?,?,?);")
 	if err != nil {
 		return Customer{}, err
 	}
 
 	_, err = statement.Exec(
 		newCustomer.UUID,
+		newCustomer.IdOrg,
 		newCustomer.Name,
 		newCustomer.Email,
 		newCustomer.CPF,
@@ -135,15 +145,20 @@ func UpdateCustomerPoints(points int, idCustomer string, tx *sql.Tx) error {
 	return nil
 }
 
-func UpdateCustomerEmail(newEmail, idCustomer string, tx *sql.Tx) error {
+func UpdateCustomerEmail(customer Customer, tx *sql.Tx) error {
 
-	statement, err := tx.Prepare("UPDATE tb_customers SET Email = ? WHERE UUID = ?")
+	query := `
+	UPDATE tb_customers SET Email = ?
+	WHERE UUID = ?
+	AND IdOrg = ?`
+
+	statement, err := tx.Prepare(query)
 	if err != nil {
 		log.Println("Erro ao preparar o update de email")
 		return err
 	}
 
-	_, err = statement.Exec(newEmail, idCustomer)
+	_, err = statement.Exec(customer.Email, customer.UUID, customer.IdOrg)
 	if err != nil {
 		log.Println("Erro ao executar o update de email")
 		return err
@@ -166,7 +181,8 @@ func UpdateCustomer(customer Customer, tx *sql.Tx) error {
 	TelComercial=?,
 	Instagram=?
 	
-	WHERE UUID = ?;`
+	WHERE UUID = ?
+	AND IdOrg = ?;`
 
 	statement, err := tx.Prepare(query)
 	if err != nil {
@@ -183,6 +199,7 @@ func UpdateCustomer(customer Customer, tx *sql.Tx) error {
 		customer.TelComercial,
 		customer.Instagram,
 		customer.UUID,
+		customer.IdOrg,
 	); err != nil {
 		log.Println("Erro ao realizar a execução do statemente de UpdateCustomer")
 	}

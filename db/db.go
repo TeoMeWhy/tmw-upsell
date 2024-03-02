@@ -2,7 +2,9 @@ package db
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
+	"strings"
 
 	_ "github.com/mattn/go-sqlite3"
 )
@@ -23,4 +25,23 @@ func ImportQuery(path string) (string, error) {
 
 	query := string(content)
 	return query, nil
+}
+
+func FormatQueryFilters(query string, filters map[string]string) (string, []interface{}) {
+
+	where := "WHERE"
+	values := []string{}
+	for k, v := range filters {
+		values = append(values, v)
+		where += fmt.Sprintf(` %s = ? AND`, k)
+	}
+
+	where = strings.TrimSuffix(where, "AND")
+
+	valuesInterface := []interface{}{}
+	for _, v := range values {
+		valuesInterface = append(valuesInterface, v)
+	}
+
+	return query + where, valuesInterface
 }

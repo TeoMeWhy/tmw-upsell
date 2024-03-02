@@ -70,13 +70,11 @@ tb_qtde_dias AS (
     group by 1
 
 )
+-- select * from tb_survival
 
 -- select sum(qt_user) from tb_soma_dias -- 273
 
--- select sum(case when qtde_days > 1 then 1 else 0 end),
---        avg(case when qtde_days > 1 then 1 else 0 end)
+select sum(case when qtde_days > 1 then 1 else 0 end),
+       avg(case when qtde_days > 1 then 1 else 0 end)
 
--- from tb_qtde_dias
-
-SELECT *
-FROM tb_lag
+from tb_qtde_dias

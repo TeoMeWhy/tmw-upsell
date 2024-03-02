@@ -1,5 +1,9 @@
 DROP TABLE IF EXISTS tb_orgs;
 CREATE TABLE IF NOT EXISTS tb_orgs (
-    UUID VARCHAR(100),
+    ID INTEGER PRIMARY KEY AUTOINCREMENT,
     Name VARCHAR(250)
 );
+
+INSERT INTO tb_orgs (Name) VALUES ('teomewhy');
+
+SELECT * FROM tb_orgs;

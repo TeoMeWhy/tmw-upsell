@@ -3,7 +3,7 @@ package api
 import (
 	"log"
 	"net/http"
-	"points_mgmt/customer"
+	"points_mgmt/customers"
 	"points_mgmt/db"
 	"points_mgmt/transaction"
 
@@ -14,6 +14,15 @@ var con, _ = db.Connect()
 
 func GetCustomer(c *gin.Context) {
 
+	idOrg, ok := c.Get("idOrg")
+	if !ok {
+		log.Println("idOrg nao foi passada")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "idOrg nao foi passada"})
+		return
+	}
+
+	mapFilters := map[string]string{"IdOrg": idOrg.(string)}
+
 	tx, err := con.Begin()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao iniciar a transação"})
@@ -22,7 +31,10 @@ func GetCustomer(c *gin.Context) {
 
 	paramID := c.Query("id")
 	if paramID != "" {
-		customer, err := customer.GetCustomerByField(paramID, "UUID", tx)
+
+		mapFilters["UUID"] = paramID
+
+		customer, err := customers.GetCustomerByField(mapFilters, tx)
 		if err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, err)
@@ -40,7 +52,9 @@ func GetCustomer(c *gin.Context) {
 
 	paramCPF := c.Query("cpf")
 	if paramCPF != "" {
-		customer, err := customer.GetCustomerByField(paramCPF, "CPF", tx)
+
+		mapFilters["CPF"] = paramCPF
+		customer, err := customers.GetCustomerByField(mapFilters, tx)
 		if err != nil {
 			tx.Rollback()
 			c.JSON(http.StatusInternalServerError, err)
@@ -62,25 +76,35 @@ func GetCustomer(c *gin.Context) {
 		return
 	}
 
-	customers, err := customer.GetCustomers(tx)
+	nCustomers, err := customers.GetCustomers(tx)
 	if err != nil {
 		tx.Rollback()
-		c.JSON(http.StatusInternalServerError, []customer.Customer{})
+		c.JSON(http.StatusInternalServerError, []customers.Customer{})
 		return
 	}
 
 	tx.Commit()
-	c.JSON(http.StatusOK, customers)
+	c.JSON(http.StatusOK, nCustomers)
 }
 
 func PostCustomer(c *gin.Context) {
 
-	newCustomer := customer.Customer{}
+	idOrg, ok := c.Get("idOrg")
+	if !ok {
+		log.Println("idOrg nao foi passada")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "idOrg nao foi passada"})
+		return
+	}
+	mapFilters := map[string]string{"IdOrg": idOrg.(string)}
+
+	newCustomer := customers.Customer{}
 	if err := c.BindJSON(&newCustomer); err != nil {
 		log.Println(err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Formato JSON inválido"})
 		return
 	}
+
+	newCustomer.IdOrg = idOrg.(string)
 
 	tx, err := con.Begin()
 	if err != nil {
@@ -89,15 +113,16 @@ func PostCustomer(c *gin.Context) {
 		return
 	}
 
-	oldCustomer := customer.Customer{}
+	oldCustomer := customers.Customer{}
 	if newCustomer.CPF != "" {
-		oldCustomer, err = customer.GetCustomerByField(newCustomer.CPF, "CPF", tx)
+		mapFilters["CPF"] = newCustomer.CPF
 	} else if newCustomer.Email != "" {
-		oldCustomer, err = customer.GetCustomerByField(newCustomer.Email, "Email", tx)
+		mapFilters["Email"] = newCustomer.Email
 	} else if newCustomer.Name != "" {
-		oldCustomer, err = customer.GetCustomerByField(newCustomer.Name, "Name", tx)
+		mapFilters["Name"] = newCustomer.Name
 	}
 
+	oldCustomer, err = customers.GetCustomerByField(mapFilters, tx)
 	if err != nil {
 		log.Println(err)
 		tx.Rollback()
@@ -112,7 +137,7 @@ func PostCustomer(c *gin.Context) {
 		return
 	}
 
-	if newCustomer, err = customer.CreateCustomer(newCustomer, tx); err != nil {
+	if newCustomer, err = customers.CreateCustomer(newCustomer, tx); err != nil {
 		log.Println(err)
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Não foi possível criar o usuário"})
@@ -124,11 +149,22 @@ func PostCustomer(c *gin.Context) {
 }
 
 func DeleteCustomer(c *gin.Context) {
+
+	idOrg, ok := c.Get("idOrg")
+	if !ok {
+		log.Println("idOrg nao foi passada")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "idOrg nao foi passada"})
+		return
+	}
+	mapFilters := map[string]string{"IdOrg": idOrg.(string)}
+
 	paramID := c.Query("id")
 	if paramID == "" {
 		c.JSON(http.StatusNotFound, gin.H{"error": "Entre com um usuário válido"})
 		return
 	}
+
+	mapFilters["UUID"] = paramID
 
 	tx, err := con.Begin()
 	if err != nil {
@@ -136,14 +172,14 @@ func DeleteCustomer(c *gin.Context) {
 		return
 	}
 
-	statement, err := tx.Prepare("DELETE FROM tb_customers WHERE UUID = ?")
+	statement, err := tx.Prepare("DELETE FROM tb_customers WHERE UUID = ? AND IdOrg = ?")
 	if err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Não foi possível iniciar o statement"})
 		return
 	}
 
-	res, err := statement.Exec(paramID)
+	res, err := statement.Exec(mapFilters["UUID"], mapFilters["IdOrg"])
 	if err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Não foi possível executar o statement"})
@@ -162,6 +198,13 @@ func DeleteCustomer(c *gin.Context) {
 }
 
 func PutCustomerEmail(c *gin.Context) {
+
+	idOrg, ok := c.Get("idOrg")
+	if !ok {
+		log.Println("idOrg nao foi passada")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "idOrg nao foi passada"})
+		return
+	}
 
 	type EmailPayload struct {
 		UUID  string
@@ -201,7 +244,13 @@ func PutCustomerEmail(c *gin.Context) {
 	// 	}
 	// }
 
-	if err := customer.UpdateCustomerEmail(payload.Email, payload.UUID, tx); err != nil {
+	customer := customers.Customer{
+		UUID:  payload.UUID,
+		Email: payload.Email,
+		IdOrg: idOrg.(string),
+	}
+
+	if err := customers.UpdateCustomerEmail(customer, tx); err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Erro ao atualizar o Email"})
 		return
@@ -212,7 +261,7 @@ func PutCustomerEmail(c *gin.Context) {
 }
 
 func PutCustomer(c *gin.Context) {
-	payload := customer.Customer{}
+	payload := customers.Customer{}
 
 	err := c.Bind(&payload)
 	if err != nil {
@@ -227,7 +276,7 @@ func PutCustomer(c *gin.Context) {
 		return
 	}
 
-	if err := customer.UpdateCustomer(payload, tx); err != nil {
+	if err := customers.UpdateCustomer(payload, tx); err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
@@ -262,7 +311,7 @@ func PutAddCustomerPoints(c *gin.Context) {
 		return
 	}
 
-	oldCustomer, err := customer.GetCustomerByField(payload.UUID, "UUID", tx)
+	oldCustomer, err := customers.GetCustomerByField(map[string]string{"UUID": payload.UUID}, tx)
 	if err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
@@ -284,7 +333,7 @@ func PutAddCustomerPoints(c *gin.Context) {
 	}
 
 	points := payload.Points + oldCustomer.Points
-	if err := customer.UpdateCustomerPoints(points, payload.UUID, tx); err != nil {
+	if err := customers.UpdateCustomerPoints(points, payload.UUID, tx); err != nil {
 		tx.Rollback()
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err})
 		return
